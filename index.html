@@ -25,35 +25,28 @@
     
     body { background-color: var(--bg-color); font-family: 'Inter', sans-serif; color: var(--text-main); }
     
-    /* Navbar Modern */
     .navbar { background: linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%); padding: 1rem 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
     .navbar-brand { font-weight: 700; font-size: 1.25rem; letter-spacing: 0.5px; }
     
-    /* Layout & Cards */
     .container-fluid { max-width: 1400px; padding: 2rem; }
     .card { background: var(--card-bg); border: none; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); transition: transform 0.2s ease-in-out; }
     .kpi-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
     
-    /* KPI Icons */
     .icon-box { width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; }
     .bg-indigo { background-color: var(--primary); }
     
-    /* Typography */
     .kpi-title { font-size: 0.875rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
     .kpi-value { font-size: 1.75rem; font-weight: 700; margin-top: 0.25rem; }
     .section-title { font-size: 1.1rem; font-weight: 600; color: var(--text-main); margin-bottom: 1.5rem; border-left: 4px solid var(--primary); padding-left: 10px; }
     
-    /* Charts & Tables */
     .chart-container { position: relative; height: 300px; width: 100%; }
     .table-container { background: var(--card-bg); border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
     .table thead th { background-color: #f9fafb; font-weight: 600; color: var(--text-muted); border-bottom: 2px solid #e5e7eb; padding: 12px; }
     .table tbody td { padding: 12px; vertical-align: middle; border-bottom: 1px solid #f3f4f6; }
     
-    /* Loader Screen */
     #loader { position: fixed; inset: 0; background: rgba(255, 255, 255, 0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(4px); }
     .loader-spinner { width: 3rem; height: 3rem; color: var(--primary); }
     
-    /* Custom Scrollbar */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -65,7 +58,7 @@
   <div id="loader">
     <div class="spinner-border loader-spinner mb-3" role="status"></div>
     <h4 class="fw-bold" style="color: var(--text-main);">Menarik Data...</h4>
-    <p class="text-muted">Sinkronisasi dengan Google Sheets</p>
+    <p class="text-muted" id="loader-text">Sinkronisasi dengan Google Sheets</p>
   </div>
 
   <nav class="navbar navbar-dark mb-4">
@@ -77,20 +70,45 @@
 
   <div class="container-fluid" id="dashboard-content" style="display: none;">
     
-    <div class="row g-4 mb-4">
-      <div class="col-xl-3 col-sm-6">
-        <div class="card kpi-card p-4">
-          <div class="d-flex align-items-center">
-            <div class="icon-box bg-indigo"><i class="fas fa-box-open"></i></div>
-            <div class="ms-3">
-              <div class="kpi-title">Total QTY Retur</div>
-              <div class="kpi-value" id="kpi-qty">0</div>
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card p-3 shadow-sm border-0">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="small text-muted fw-bold mb-1"><i class="fas fa-search"></i> Pencarian</label>
+              <input type="text" id="filterSearch" class="form-control form-control-sm" placeholder="Cari Kode / Nama Toko...">
+            </div>
+            <div class="col-md-2">
+              <label class="small text-muted fw-bold mb-1"><i class="fas fa-calendar-alt"></i> Periode Waktu</label>
+              <select id="filterPeriode" class="form-select form-select-sm">
+                <option value="ALL">Semua Waktu</option>
+                <option value="MTD">MTD (Bulan Ini)</option>
+                <option value="YTD">YTD (Tahun Ini)</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="small text-muted fw-bold mb-1">Wilayah</label>
+              <select id="filterWilayah" class="form-select form-select-sm"><option value="ALL">Semua Wilayah</option></select>
+            </div>
+            <div class="col-md-2">
+              <label class="small text-muted fw-bold mb-1">Area Manager</label>
+              <select id="filterAM" class="form-select form-select-sm"><option value="ALL">Semua AM</option></select>
+            </div>
+            <div class="col-md-2">
+              <label class="small text-muted fw-bold mb-1">Area Coord</label>
+              <select id="filterAC" class="form-select form-select-sm"><option value="ALL">Semua AC</option></select>
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+              <button id="btnReset" class="btn btn-sm btn-outline-danger w-100" title="Reset Filter"><i class="fas fa-sync"></i></button>
             </div>
           </div>
         </div>
       </div>
+    </div>
+    
+    <div class="row g-4 mb-4">
       <div class="col-xl-3 col-sm-6">
-        <div class="card kpi-card p-4">
+        <div class="card kpi-card p-4 h-100">
           <div class="d-flex align-items-center">
             <div class="icon-box bg-danger"><i class="fas fa-money-bill-wave"></i></div>
             <div class="ms-3">
@@ -101,7 +119,18 @@
         </div>
       </div>
       <div class="col-xl-3 col-sm-6">
-        <div class="card kpi-card p-4">
+        <div class="card kpi-card p-4 h-100">
+          <div class="d-flex align-items-center">
+            <div class="icon-box bg-indigo"><i class="fas fa-box-open"></i></div>
+            <div class="ms-3">
+              <div class="kpi-title">Total QTY Retur</div>
+              <div class="kpi-value" id="kpi-qty">0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-3 col-sm-6">
+        <div class="card kpi-card p-4 h-100">
           <div class="d-flex align-items-center">
             <div class="icon-box bg-success"><i class="fas fa-store"></i></div>
             <div class="ms-3">
@@ -112,7 +141,7 @@
         </div>
       </div>
       <div class="col-xl-3 col-sm-6">
-        <div class="card kpi-card p-4">
+        <div class="card kpi-card p-4 h-100">
           <div class="d-flex align-items-center">
             <div class="icon-box bg-warning"><i class="fas fa-exclamation-triangle"></i></div>
             <div class="ms-3">
@@ -127,7 +156,7 @@
     <div class="row g-4 mb-4">
       <div class="col-lg-8">
         <div class="card p-4 h-100">
-          <h5 class="section-title">Tren Nilai Retur Harian (Rupiah)</h5>
+          <h5 class="section-title">Tren Nilai Retur Harian (Rupiah & QTY)</h5>
           <div class="chart-container"><canvas id="trendChart"></canvas></div>
         </div>
       </div>
@@ -165,7 +194,7 @@
               <th>Area</th>
               <th>Tipe</th>
               <th>PLU & Deskripsi Barang</th>
-              <th>Dept</th>
+              <th>Dept/Kategori</th>
               <th>QTY</th>
               <th>Total Harga (Rp)</th>
             </tr>
