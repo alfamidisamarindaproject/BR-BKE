@@ -1,178 +1,145 @@
-// Konfigurasi URL API Google Sheet Anda
-const API_URL = "https://script.google.com/macros/s/AKfycbzujly75H_753-WoJ9ToJsW72HK9OOWXU6SYlB2WiHbXsc1_uCuzg0TDyIFgJb6f-SN/exec";
+// MASUKKAN URL WEB APP GOOGLE APPS SCRIPT ANDA DI SINI
+const API_URL = 'https://script.google.com/macros/s/AKfycbx4X0dPuU4xeZOuTqcrt2eoal9hq1itHwfpqbYuewUKn97QUTgaHTRuipaPBSJESOn5/exec';
 
-// Inisialisasi saat web dimuat
-document.addEventListener("DOMContentLoaded", () => {
-    fetchDataDariGoogleSheet();
+let globalData = [];
+let filteredData = [];
+let chartInstance = null;
+
+// Eksekusi saat halaman dimuat
+document.addEventListener('DOMContentLoaded', () => {
+  fetchDataFromAPI();
+  setupEventListeners();
 });
 
-// Fungsi fetch ke Google Script
-async function fetchDataDariGoogleSheet() {
-    try {
-        const response = await fetch(API_URL);
-        
-        if (!response.ok) {
-            throw new Error(`Gagal ke server Google. Kode: ${response.status}`);
-        }
-        
-        const rawData = await response.json();
-        
-        if (rawData.error) throw new Error(rawData.error);
-        
-        // Mematikan loader dan menampilkan konten utama
-        document.getElementById('loader').style.display = 'none';
-        document.getElementById('dashboard-content').style.display = 'block';
-        
-        // Mulai memproses dan menggambar data
-        processAndRenderData(rawData); 
-        
-    } catch (error) {
-        console.error("Gagal Render:", error);
-        document.getElementById('loader').innerHTML = `
-            <div class="text-danger text-center mt-5">
-                <i class="fas fa-circle-exclamation fa-3x mb-3"></i>
-                <h4 class="fw-bold">Gagal Memuat Database</h4>
-                <p>${error.message}</p>
-                <button class="btn btn-outline-danger mt-2" onclick="location.reload()">Coba Lagi</button>
-            </div>
-        `;
+// Fetch API dari Google Apps Script
+async function fetchDataFromAPI() {
+  try {
+    const response = await fetch(API_URL);
+    const result = await response.json();
+    
+    if (result.status === "success") {
+      globalData = result.data;
+      filteredData = result.data;
+      
+      document.getElementById('loader').style.display = 'none';
+      document.getElementById('trendChart').style.display = 'block';
+      
+      const badge = document.getElementById('loading-badge');
+      badge.innerHTML = `<i class="fa-solid fa-check-circle mr-2"></i> API Terhubung (${globalData.length} baris)`;
+      badge.classList.replace('bg-indigo-500', 'bg-emerald-500');
+
+      populateFilterDropdowns(globalData);
+      processAndRenderDashboard();
+    } else {
+      console.error("API Error:", result.message);
+      alert("Gagal memuat data dari API.");
     }
+  } catch (error) {
+    console.error("Fetch failed:", error);
+    document.getElementById('loading-badge').innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i> Gagal Koneksi API`;
+    document.getElementById('loading-badge').classList.replace('bg-indigo-500', 'bg-red-500');
+  }
 }
 
-// Utility: Format Rupiah & Pembersih Angka
-const formatRp = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka || 0);
-const parseAngka = (val) => parseFloat((val || '0').toString().replace(/[^0-9,-]/g, '').replace(',', '.')) || 0;
+// Logika Dropdown Filter
+function populateFilterDropdowns(data) {
+  const sets = { wilayah: new Set(), am: new Set(), ac: new Set(), ket: new Set() };
 
-// Logika Utama: Pengolahan Data (Tabel & Grafik)
-function processAndRenderData(data) {
-    const sheet1 = data.sheet1; // Transaksi
-    const sheet2 = data.sheet2; // Master Toko
-    
-    // Hapus baris header
-    sheet1.shift(); 
-    sheet2.shift();
+  data.forEach(item => {
+    if(item.wilayah && item.wilayah !== 'N/A') sets.wilayah.add(item.wilayah);
+    if(item.am && item.am !== 'N/A') sets.am.add(item.am);
+    if(item.ac && item.ac !== 'N/A') sets.ac.add(item.ac);
+    if(item.ket) sets.ket.add(item.ket);
+  });
 
-    // 1. Buat "Kamus" Data Toko (agar pencarian cepat)
-    const masterToko = {};
-    sheet2.forEach(row => {
-        let kdToko = row[0] ? row[0].toString().trim() : "";
-        masterToko[kdToko] = {
-            nama: row[1] || "-",
-            ac: row[2] || "-",
-            am: row[3] || "-",
-            wilayah: row[4] || "-"
-        };
+  const fillSelect = (id, dataSet) => {
+    const el = document.getElementById(id);
+    Array.from(dataSet).sort().forEach(val => {
+      let opt = document.createElement('option');
+      opt.value = val; opt.text = val; el.add(opt);
     });
+  };
 
-    // 2. Variabel Penampung Kalkulasi
-    let totalQty = 0, totalRp = 0;
-    let tokoSet = new Set();
-    let tipeCount = { "BR": 0, "BKE": 0 };
-    
-    let chartTrend = {}, chartDept = {}, chartWilayah = {}, chartToko = {};
-    let htmlRows = "";
+  fillSelect('filterWilayah', sets.wilayah);
+  fillSelect('filterAM', sets.am);
+  fillSelect('filterAC', sets.ac);
+  fillSelect('filterKet', sets.ket);
+}
 
-    // 3. Looping Data Transaksi
-    sheet1.forEach(row => {
-        let tgl = row[0] || "-";
-        let kdToko = row[1] ? row[1].toString().trim() : "-";
-        let tipe = row[2] || "-";
-        let plu = row[3] || "-";
-        let desc = row[4] || "-";
-        let qty = parseAngka(row[5]);
-        let avgCost = parseAngka(row[6]);
-        let dept = row[7] || "Lainnya";
-        let totHarga = qty * avgCost;
+// Event Listeners Input
+function setupEventListeners() {
+  ['searchToko', 'filterWilayah', 'filterAM', 'filterAC', 'filterKet'].forEach(id => {
+    document.getElementById(id).addEventListener(id === 'searchToko' ? 'input' : 'change', applyFilters);
+  });
 
-        // Ambil info dari kamus toko
-        let info = masterToko[kdToko] || { nama: "Tidak Ditemukan", ac: "-", am: "-", wilayah: "-" };
+  document.getElementById('btnReset').addEventListener('click', () => {
+    document.getElementById('searchToko').value = '';
+    ['filterWilayah', 'filterAM', 'filterAC', 'filterKet'].forEach(id => document.getElementById(id).value = 'ALL');
+    applyFilters();
+  });
+}
 
-        // Kalkulasi KPI
-        totalQty += qty;
-        totalRp += totHarga;
-        tokoSet.add(kdToko);
-        if (tipe === "BR" || tipe === "BKE") tipeCount[tipe]++;
+// Filter Engine
+function applyFilters() {
+  const searchWord = document.getElementById('searchToko').value.toLowerCase().trim();
+  const valWilayah = document.getElementById('filterWilayah').value;
+  const valAM = document.getElementById('filterAM').value;
+  const valAC = document.getElementById('filterAC').value;
+  const valKet = document.getElementById('filterKet').value;
 
-        // Kalkulasi Grafik
-        chartTrend[tgl] = (chartTrend[tgl] || 0) + totHarga;
-        chartDept[dept] = (chartDept[dept] || 0) + qty;
-        chartWilayah[info.wilayah] = (chartWilayah[info.wilayah] || 0) + totHarga;
-        
-        let labelToko = `${kdToko} - ${info.nama}`;
-        chartToko[labelToko] = (chartToko[labelToko] || 0) + qty;
+  filteredData = globalData.filter(d => {
+    const matchSearch = (d.kd_toko.toLowerCase().includes(searchWord) || d.nama_toko.toLowerCase().includes(searchWord));
+    const matchWilayah = valWilayah === 'ALL' || d.wilayah === valWilayah;
+    const matchAM = valAM === 'ALL' || d.am === valAM;
+    const matchAC = valAC === 'ALL' || d.ac === valAC;
+    const matchKet = valKet === 'ALL' || d.ket === valKet;
+    return matchSearch && matchWilayah && matchAM && matchAC && matchKet;
+  });
 
-        // Pembuatan Baris Tabel HTML
-        let badgeTipe = tipe === 'BR' ? 'bg-warning text-dark' : (tipe === 'BKE' ? 'bg-danger' : 'bg-secondary');
-        htmlRows += `
-            <tr>
-                <td class="text-nowrap">${tgl}</td>
-                <td><span class="fw-bold">${kdToko}</span><br><small class="text-muted">${info.nama}</small></td>
-                <td><small>AC: ${info.ac}<br>AM: ${info.am}<br>Wil: <b>${info.wilayah}</b></small></td>
-                <td><span class="badge ${badgeTipe}">${tipe}</span></td>
-                <td><span class="fw-bold">${plu}</span><br><small class="text-muted">${desc}</small></td>
-                <td>${dept}</td>
-                <td class="fw-bold text-center">${qty.toLocaleString('id-ID')}</td>
-                <td class="fw-bold text-success text-end" data-order="${totHarga}">${formatRp(totHarga)}</td>
-            </tr>
-        `;
-    });
+  processAndRenderDashboard();
+}
 
-    // 4. Update Angka KPI di HTML
-    document.getElementById('kpi-qty').innerText = totalQty.toLocaleString('id-ID');
-    document.getElementById('kpi-rp').innerText = formatRp(totalRp);
-    document.getElementById('kpi-toko').innerText = tokoSet.size.toLocaleString('id-ID');
-    document.getElementById('kpi-tipe').innerText = tipeCount["BR"] >= tipeCount["BKE"] ? "BR" : "BKE";
+// Proses Data & Update UI
+function processAndRenderDashboard() {
+  let totalNet = 0; let totalQty = 0; let trendData = {};
 
-    // 5. Inisialisasi DataTables (Tabel Pencarian Interaktif)
-    document.getElementById('table-data').innerHTML = htmlRows;
-    $('#dataTable').DataTable({
-        language: { url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/id.json' },
-        pageLength: 10,
-        responsive: true,
-        order: [[0, "desc"]] // Urutkan dari tanggal terbaru
-    });
+  filteredData.forEach(item => {
+    totalNet += item.net; totalQty += item.qty;
+    let dateKey = item.tgl_retur.includes('T') ? item.tgl_retur.split('T')[0] : item.tgl_retur;
+    if(!trendData[dateKey]) trendData[dateKey] = { net: 0, qty: 0 };
+    trendData[dateKey].net += item.net;
+    trendData[dateKey].qty += item.qty;
+  });
 
-    // 6. Gambar Grafik (Chart.js)
-    Chart.defaults.font.family = "'Inter', sans-serif";
-    const warnadasar = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#0ea5e9'];
+  document.getElementById('kpiNet').innerText = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalNet);
+  document.getElementById('kpiQty').innerText = new Intl.NumberFormat('id-ID').format(totalQty);
+  document.getElementById('kpiTx').innerText = new Intl.NumberFormat('id-ID').format(filteredData.length);
 
-    // A. Trend Harian (Line)
-    const tglSort = Object.keys(chartTrend).sort();
-    new Chart(document.getElementById('trendChart'), {
-        type: 'line',
-        data: {
-            labels: tglSort,
-            datasets: [{
-                label: 'Nilai Retur',
-                data: tglSort.map(d => chartTrend[d]),
-                borderColor: '#4f46e5',
-                backgroundColor: 'rgba(79, 70, 229, 0.1)',
-                borderWidth: 3, fill: true, tension: 0.4
-            }]
-        },
-        options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => formatRp(c.raw) } } }, scales: { y: { ticks: { callback: (v) => formatRp(v) } } } }
-    });
+  const sortedDates = Object.keys(trendData).sort();
+  renderTrendChart(sortedDates, sortedDates.map(d => trendData[d].net), sortedDates.map(d => trendData[d].qty));
+}
 
-    // B. Dept (Doughnut)
-    new Chart(document.getElementById('deptChart'), {
-        type: 'doughnut',
-        data: { labels: Object.keys(chartDept), datasets: [{ data: Object.values(chartDept), backgroundColor: warnadasar, borderWidth: 0 }] },
-        options: { maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } } }
-    });
+// Chart.js Rendering
+function renderTrendChart(labels, dataNet, dataQty) {
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  if (chartInstance) chartInstance.destroy();
 
-    // C. Wilayah (Bar Chart Horizontal)
-    const sortWil = Object.entries(chartWilayah).sort((a,b) => b[1]-a[1]);
-    new Chart(document.getElementById('wilayahChart'), {
-        type: 'bar',
-        data: { labels: sortWil.map(x => x[0]), datasets: [{ label: 'Total Rupiah', data: sortWil.map(x => x[1]), backgroundColor: '#0ea5e9', borderRadius: 6 }] },
-        options: { maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => formatRp(c.raw) } } }, scales: { x: { ticks: { callback: (v) => formatRp(v) } } } }
-    });
-
-    // D. Top 5 Toko (Bar)
-    const sortToko = Object.entries(chartToko).sort((a,b) => b[1]-a[1]).slice(0, 5);
-    new Chart(document.getElementById('tokoChart'), {
-        type: 'bar',
-        data: { labels: sortToko.map(x => x[0].split(' - ')[1] || x[0]), datasets: [{ label: 'Total QTY', data: sortToko.map(x => x[1]), backgroundColor: '#f59e0b', borderRadius: 6 }] },
-        options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
-    });
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Total Rupiah (NET)', data: dataNet, borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderWidth: 3, pointRadius: 4, fill: true, tension: 0.4, yAxisID: 'y' },
+        { label: 'Total Kuantitas (QTY)', data: dataQty, type: 'bar', backgroundColor: 'rgba(16, 185, 129, 0.8)', borderRadius: 4, yAxisID: 'y1' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { grid: { display: false } },
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Nilai Netto (Rupiah)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Jumlah Kuantitas' } }
+      }
+    }
+  });
 }
