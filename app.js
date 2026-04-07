@@ -1,5 +1,5 @@
 // Masukkan link URL Web App Anda di sini
-const API_URL = "https://script.google.com/macros/s/AKfycbxUfIn-shvtmt0K98b39rqC4wYo8d2S83p9UFDJ6bYOMD0fuS58v15Q1MNSYGbY4tHR/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwFgt2504nPF2MDCrJuSVlSN-uuPLOviMP_3lpYGyiAg0WZ_0WgXlQkgentFvnHgQyo/exec";
 
 document.addEventListener("DOMContentLoaded", () => {
     // Panggil fungsi fetch saat halaman dimuat
